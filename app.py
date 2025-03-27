@@ -4,10 +4,11 @@ import random
 from typing import Tuple, Dict
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain.chat_models import init_chat_model
-from atla import Atla
+from atla import Atla, AsyncAtla
 from dotenv import load_dotenv
+import asyncio
 
-load_dotenv()
+load_dotenv(dotenv_path="/.env")
 
 # Set page config
 st.set_page_config(page_title="Meta-GPT", layout="wide")
@@ -15,45 +16,112 @@ st.set_page_config(page_title="Meta-GPT", layout="wide")
 # Configuration parameters
 QUALITY_THRESHOLD = 4.0  # Threshold for acceptable response quality
 MAX_ITERATIONS = 3  # Maximum number of refinement iterations
-EVAL_PROMPT = """
-    Evaluate the response on the following dimensions, scoring each from 1-5 (where 5 is excellent):
 
-    1. Accuracy: Is the response factually correct and free from hallucination or misinformation?
-    2. Relevance: Does the response directly answer the user's question effectively?
-    3. Clarity: Is the response clearly structured and easily understandable?
-    4. Depth: Does the response provide sufficient detail, insight, or useful context?
-
-    For each dimension, provide:
-    - A numeric score (1-5)
+# Split the evaluation prompt into separate dimensions
+ACCURACY_PROMPT = """
+    Evaluate the response on Accuracy: Is the response factually correct and free from hallucination or misinformation?
+    
+    Scoring Rubric:
+    Score 1: The response contains numerous factual errors or completely fabricated information.
+    Score 2: The response contains major factual errors or significant hallucinations.
+    Score 3: The response contains some factual inaccuracies, but they are not significant.
+    Score 4: The response is factually sound with only minor inaccuracies.
+    Score 5: The response is factually flawless and completely accurate.
+    
+    Provide:
+    - A numeric score (1-5, where 5 is excellent)
     - A brief explanation justifying the score
     - Specific suggestions for improvement
-
-    Then provide an overall average score and a concise summary of your evaluation.
-    Your overall average score should be a single floating-point number between 1 and 5.
 """
 
+RELEVANCE_PROMPT = """
+    Evaluate the response on Relevance: Does the response directly answer the user's question effectively?
+    
+    Scoring Rubric:
+    Score 1: The response completely misses the point of the question.
+    Score 2: The response addresses the general topic but fails to answer the specific question.
+    Score 3: The response partially answers the question but misses key aspects.
+    Score 4: The response answers the question well but could be more focused or complete.
+    Score 5: The response perfectly addresses all aspects of the question.
+    
+    Provide:
+    - A numeric score (1-5, where 5 is excellent)
+    - A brief explanation justifying the score
+    - Specific suggestions for improvement
+"""
+
+CLARITY_PROMPT = """
+    Evaluate the response on Clarity: Is the response clearly structured and easily understandable?
+    
+    Scoring Rubric:
+    Score 1: The response is extremely confusing and poorly structured.
+    Score 2: The response is difficult to follow with major organizational issues.
+    Score 3: The response is somewhat clear but has organizational or expression issues.
+    Score 4: The response is well-structured with only minor clarity issues.
+    Score 5: The response is exceptionally clear, well-organized, and easy to understand.
+    
+    Provide:
+    - A numeric score (1-5, where 5 is excellent)
+    - A brief explanation justifying the score
+    - Specific suggestions for improvement
+"""
+
+DEPTH_PROMPT = """
+    Evaluate the response on Depth: Does the response provide sufficient detail, insight, or useful context?
+    
+    Scoring Rubric:
+    Score 1: The response is extremely shallow with no meaningful detail or insight.
+    Score 2: The response lacks significant depth and provides minimal useful information.
+    Score 3: The response provides some depth but misses opportunities for insight or context.
+    Score 4: The response offers good depth with useful details and context.
+    Score 5: The response provides exceptional depth with comprehensive details, valuable insights, and rich context.
+    
+    Provide:
+    - A numeric score (1-5, where 5 is excellent)
+    - A brief explanation justifying the score
+    - Specific suggestions for improvement
+"""
 
 # Initialize API keys from environment variables or Streamlit secrets
 def initialize_api_keys():
-    # Check if we're running in Streamlit Cloud with secrets
-    try:
-        if hasattr(st, "secrets") and "OPENAI_API_KEY" in st.secrets:
-            os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
-            os.environ["ANTHROPIC_API_KEY"] = st.secrets["ANTHROPIC_API_KEY"]
-            os.environ["TOGETHER_API_KEY"] = st.secrets["TOGETHER_API_KEY"]
-            os.environ["ATLA_API_KEY"] = st.secrets["ATLA_API_KEY"]
-        # Keys should be loaded from environment variables or .env file
-        # No UI for API key input needed
-    except Exception as e:
-        st.sidebar.error(f"Error loading API keys: {e}")
+    # Load from .env file (already done via load_dotenv() at the top of your script)
+    # No need to check for Streamlit secrets if you're using .env exclusively
+    
+    # Check if required keys are in environment variables
+    required_keys = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "TOGETHER_API_KEY", "ATLA_API_KEY"]
+    missing_keys = [key for key in required_keys if not os.environ.get(key)]
+    
+    if missing_keys:
+        st.sidebar.error(f"Missing API keys: {', '.join(missing_keys)}")
+        st.sidebar.info("Please add these keys to your .env file")
+        return False
+    
+    return True
 
 
 # Initialize models and session state
 def initialize_app():
-    initialize_api_keys()
+    keys_loaded = initialize_api_keys()
 
-    # Initialize LLM clients if they don't exist or if API keys have been updated
+    # Initialize session state variables if they don't exist
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+        
+    if "chat_messages" not in st.session_state:
+        st.session_state.chat_messages = [
+            SystemMessage(
+                content="You are a helpful assistant that can answer questions and help with tasks."
+            )
+        ]
+        
+    if "latest_result" not in st.session_state:
+        st.session_state.latest_result = None
+        
     if "initialized" not in st.session_state:
+        st.session_state.initialized = False
+
+    # Only initialize models if keys are loaded and not already initialized
+    if not st.session_state.initialized and keys_loaded:
         try:
             st.session_state.gpt4o = init_chat_model("gpt-4o", model_provider="openai")
             st.session_state.claude = init_chat_model(
@@ -63,40 +131,74 @@ def initialize_app():
                 "deepseek-ai/DeepSeek-V3", model_provider="together"
             )
             st.session_state.atla = Atla()
+            st.session_state.async_atla = AsyncAtla()
             st.session_state.initialized = True
-
-            # Initialize chat messages
-            if "chat_messages" not in st.session_state:
-                st.session_state.chat_messages = [
-                    SystemMessage(
-                        content="You are a helpful assistant that can answer questions and help with tasks."
-                    )
-                ]
-
-            # Initialize chat history for display
-            if "chat_history" not in st.session_state:
-                st.session_state.chat_history = []
-
-            # Initialize latest result
-            if "latest_result" not in st.session_state:
-                st.session_state.latest_result = None
 
         except Exception as e:
             st.error(f"Error initializing models: {e}")
-            st.warning("Please check your API keys in the sidebar.")
+            st.warning("Please check your API keys in the .env file.")
             st.session_state.initialized = False
 
 
-def evaluate_with_atla(inputs: dict[str, str]) -> Tuple[float, str]:
-    """Evaluate response using Atla's Selene model."""
-    response = st.session_state.atla.evaluation.create(
+async def evaluate_dimension(question: str, response: str, dimension_prompt: str) -> Tuple[float, str]:
+    """Evaluate a single dimension using Atla's Selene model asynchronously."""
+    eval_response = await st.session_state.async_atla.evaluation.create(
         model_id="atla-selene",
-        model_input=inputs["question"],
-        model_output=inputs["response"],
-        evaluation_criteria=EVAL_PROMPT,
+        model_input=question,
+        model_output=response,
+        evaluation_criteria=dimension_prompt,
     )
-    evaluation = response.result.evaluation
+    evaluation = eval_response.result.evaluation
     return float(evaluation.score), evaluation.critique
+
+
+async def evaluate_with_atla_async(inputs: dict[str, str]) -> Tuple[float, Dict[str, Dict]]:
+    """Evaluate response using Atla's Selene model across all dimensions asynchronously."""
+    # Create tasks for all dimensions
+    accuracy_task = evaluate_dimension(inputs["question"], inputs["response"], ACCURACY_PROMPT)
+    relevance_task = evaluate_dimension(inputs["question"], inputs["response"], RELEVANCE_PROMPT)
+    clarity_task = evaluate_dimension(inputs["question"], inputs["response"], CLARITY_PROMPT)
+    depth_task = evaluate_dimension(inputs["question"], inputs["response"], DEPTH_PROMPT)
+    
+    # Run all evaluations concurrently
+    accuracy_score, accuracy_critique = await accuracy_task
+    relevance_score, relevance_critique = await relevance_task
+    clarity_score, clarity_critique = await clarity_task
+    depth_score, depth_critique = await depth_task
+    
+    # Calculate average score
+    avg_score = (accuracy_score + relevance_score + clarity_score + depth_score) / 4
+    
+    # Compile detailed results
+    detailed_results = {
+        "accuracy": {"score": accuracy_score, "critique": accuracy_critique},
+        "relevance": {"score": relevance_score, "critique": relevance_critique},
+        "clarity": {"score": clarity_score, "critique": clarity_critique},
+        "depth": {"score": depth_score, "critique": depth_critique}
+    }
+    
+    # Compile overall critique
+    overall_critique = f"""
+    Accuracy ({accuracy_score}/5): {accuracy_critique}
+    
+    Relevance ({relevance_score}/5): {relevance_critique}
+    
+    Clarity ({clarity_score}/5): {clarity_critique}
+    
+    Depth ({depth_score}/5): {depth_critique}
+    
+    **Overall Score: {avg_score:.2f}/5**
+    """
+    
+    return avg_score, overall_critique, detailed_results
+
+
+def evaluate_response(question: str, response: str) -> Dict:
+    """Evaluate a single response using Selene."""
+    inputs = {"question": question, "response": response}
+    # Use asyncio to run the async function
+    score, critique, detailed_results = asyncio.run(evaluate_with_atla_async(inputs))
+    return {"score": score, "critique": critique, "detailed_results": detailed_results}
 
 
 def get_responses(
@@ -152,13 +254,6 @@ def get_responses(
         responses["DeepSeekV3.0"] = deepseek_response.content
 
     return responses
-
-
-def evaluate_response(question: str, response: str) -> Dict:
-    """Evaluate a single response using Selene."""
-    inputs = {"question": question, "response": response}
-    score, critique = evaluate_with_atla(inputs)
-    return {"score": score, "critique": critique}
 
 
 def evaluate_all_responses(
@@ -364,7 +459,7 @@ def display_evaluation_details():
                             disabled=True,
                         )
 
-                        st.write("**Atla Critique:**")
+                        st.write("**Atla Critique's across different dimensions:**")
                         st.write(refinement["evaluation"]["critique"])
 
         # Model comparison
@@ -380,7 +475,7 @@ def display_evaluation_details():
                     disabled=True,
                 )
 
-                st.write("**Atla Critique:**")
+                st.write("**Atla Critique's across different dimensions:**")
                 st.write(eval_data["critique"])
 
 
