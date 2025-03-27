@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Set page config
-st.set_page_config(page_title="Meta-ChatGPT", layout="wide")
+st.set_page_config(page_title="Meta-GPT", layout="wide")
 
 # Configuration parameters
 QUALITY_THRESHOLD = 4.0  # Threshold for acceptable response quality
@@ -233,7 +233,7 @@ def refine_responses(question: str, model: str, evaluation: Dict) -> Tuple[str, 
 
 
 def meta_chat(question: str) -> Dict:
-    """Process user question through the Meta-ChatGPT system."""
+    """Process user question through the Meta-GPT system."""
     iteration = 0
     refinement_history = []
 
@@ -403,11 +403,11 @@ def main():
 
     with col1:
         # Display header
-        st.title("🤖 Meta-ChatGPT with Selene")
+        st.title("🤖 Meta-GPT")
         st.markdown(
             """
         This app uses multiple LLMs (GPT-4o, Claude 3.7, and DeepSeekV3.0) to answer your questions.
-        Selene evaluates each response, and the best one is selected and refined if needed.
+        The world's best LLM-as-a-Judge, [Selene](https://www.atla-ai.com/api), evaluates each response, and the best one is selected and refined if needed.
         """
         )
 
