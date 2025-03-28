@@ -66,20 +66,20 @@ CLARITY_PROMPT = """
     - Specific suggestions for improvement, including restructuring ideas or refining language for ultimate clarity
 """
 
-DEPTH_PROMPT = """
-    Evaluate the response on Depth: Does the response provide extraordinarily comprehensive coverage, offering cutting-edge insights and exploring the topic to its fullest extent?
+HELPFULNESS_PROMPT = """
+    Evaluate the response on Helpfulness: Does the response provide practical, actionable value that directly addresses the user's needs and empowers them to achieve their goals?
 
     Scoring Rubric:
-    Score 1: The response lacks depth, misses key concepts, or fails to go beyond surface-level information.
-    Score 2: The response provides good coverage but doesn't delve into advanced concepts or implications.
-    Score 3: The response offers solid depth with some advanced concepts, but doesn't push the boundaries of the topic.
-    Score 4: The response provides excellent depth, touching on cutting-edge ideas, but falls short of exhaustive coverage.
-    Score 5: The response demonstrates unparalleled depth, offering groundbreaking insights, and exhaustively covering all aspects including future implications.
+    Score 1: The response is unhelpful, misinterprets the user's needs, or provides information that cannot be practically applied.
+    Score 2: The response partially addresses the user's needs but leaves significant gaps or provides advice that is difficult to implement.
+    Score 3: The response is generally helpful, addressing the main aspects of the query with usable guidance.
+    Score 4: The response is very helpful, providing comprehensive solutions tailored to the specific context with clear implementation paths.
+    Score 5: The response demonstrates exceptional helpfulness, anticipating unstated needs, removing obstacles, and transforming the user's ability to succeed with minimal friction.
 
     Provide:
     - A numeric score (1-5, where 5 is near impossible to achieve)
-    - A detailed critique justifying the score, analyzing the breadth and depth of concepts covered
-    - Specific suggestions for improvement, including additional advanced topics, interdisciplinary connections, or futuristic implications that could have been explored
+    - A detailed critique justifying the score, analyzing how well the response addresses the user's explicit and implicit needs
+    - Specific suggestions for improvement, including additional guidance, clarifications, alternative approaches, or resources that would enhance the practical value to the user
 """
 
 # Initialize API keys from environment variables or Streamlit secrets
@@ -158,28 +158,28 @@ async def evaluate_with_atla_async(inputs: dict[str, str]) -> Tuple[float, Dict[
     accuracy_task = evaluate_dimension(inputs["question"], inputs["response"], ACCURACY_PROMPT)
     relevance_task = evaluate_dimension(inputs["question"], inputs["response"], RELEVANCE_PROMPT)
     clarity_task = evaluate_dimension(inputs["question"], inputs["response"], CLARITY_PROMPT)
-    depth_task = evaluate_dimension(inputs["question"], inputs["response"], DEPTH_PROMPT)
+    helpfulness_task = evaluate_dimension(inputs["question"], inputs["response"], HELPFULNESS_PROMPT)
     
     # Run all evaluations concurrently using asyncio.gather
-    accuracy_result, relevance_result, clarity_result, depth_result = await asyncio.gather(
-        accuracy_task, relevance_task, clarity_task, depth_task
+    accuracy_result, relevance_result, clarity_result, helpfulness_result = await asyncio.gather(
+        accuracy_task, relevance_task, clarity_task, helpfulness_task
     )
     
     # Unpack results
     accuracy_score, accuracy_critique = accuracy_result
     relevance_score, relevance_critique = relevance_result
     clarity_score, clarity_critique = clarity_result
-    depth_score, depth_critique = depth_result
+    helpfulness_score, helpfulness_critique = helpfulness_result
     
     # Calculate average score
-    avg_score = (accuracy_score + relevance_score + clarity_score + depth_score) / 4
+    avg_score = (accuracy_score + relevance_score + clarity_score + helpfulness_score) / 4
     
     # Compile detailed results
     detailed_results = {
         "accuracy": {"score": accuracy_score, "critique": accuracy_critique},
         "relevance": {"score": relevance_score, "critique": relevance_critique},
         "clarity": {"score": clarity_score, "critique": clarity_critique},
-        "depth": {"score": depth_score, "critique": depth_critique}
+        "helpfulness": {"score": helpfulness_score, "critique": helpfulness_critique}
     }
     
     # Compile overall critique
@@ -190,7 +190,7 @@ async def evaluate_with_atla_async(inputs: dict[str, str]) -> Tuple[float, Dict[
     
     Clarity ({clarity_score}/5): {clarity_critique}
     
-    Depth ({depth_score}/5): {depth_critique}
+    Helpfulness ({helpfulness_score}/5): {helpfulness_critique}
     
     **Overall Score: {avg_score:.2f}/5**
     """
@@ -507,7 +507,7 @@ def main():
         st.markdown(
             """
         This app uses multiple LLMs (GPT-4o, Claude 3.7, and DeepSeekV3.0) to answer your questions.
-        The world's best LLM-as-a-Judge, [Selene](https://www.atla-ai.com/api), evaluates each response, and the best one is selected and refined if needed.
+        The world's best LLM-as-a-Judge, [Selene](https://www.atla-ai.com/api), evaluates each response on accuracy, relevance, clarity, and depth, and the best one is selected and refined if needed (< 4.0 score).
         """
         )
 
