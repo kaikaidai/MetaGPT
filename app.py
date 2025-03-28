@@ -19,67 +19,67 @@ MAX_ITERATIONS = 3  # Maximum number of refinement iterations
 
 # Split the evaluation prompt into separate dimensions
 ACCURACY_PROMPT = """
-    Evaluate the response on Accuracy: Is the response factually correct and free from hallucination or misinformation?
-    
+    Evaluate the response on Accuracy: Is the response factually correct, free from even minor inaccuracies, and demonstrating a deep, nuanced understanding of the subject matter?
+
     Scoring Rubric:
-    Score 1: The response contains numerous factual errors or completely fabricated information.
-    Score 2: The response contains major factual errors or significant hallucinations.
-    Score 3: The response contains some factual inaccuracies, but they are not significant.
-    Score 4: The response is factually sound with only minor inaccuracies.
-    Score 5: The response is factually flawless and completely accurate.
-    
+    Score 1: The response contains any factual errors, no matter how minor, or shows any signs of hallucination.
+    Score 2: The response is mostly accurate but lacks precision in technical details or contains slight oversimplifications.
+    Score 3: The response is accurate and precise, but fails to address potential edge cases or exceptions.
+    Score 4: The response is highly accurate, addresses edge cases, but doesn't demonstrate extraordinary depth of knowledge.
+    Score 5: The response is impeccably accurate, demonstrates expert-level understanding, and provides insights beyond common knowledge.
+
     Provide:
-    - A numeric score (1-5, where 5 is excellent)
-    - A brief explanation justifying the score
-    - Specific suggestions for improvement
+    - A numeric score (1-5, where 5 is near impossible to achieve)
+    - A detailed critique justifying the score, highlighting even minor inaccuracies
+    - Specific suggestions for improvement, including additional facts or nuances that could have been included
 """
 
 RELEVANCE_PROMPT = """
-    Evaluate the response on Relevance: Does the response directly answer the user's question effectively?
-    
+    Evaluate the response on Relevance: Does the response answer the user's question with laser-focused precision, anticipating and addressing all possible interpretations and implications?
+
     Scoring Rubric:
-    Score 1: The response completely misses the point of the question.
-    Score 2: The response addresses the general topic but fails to answer the specific question.
-    Score 3: The response partially answers the question but misses key aspects.
-    Score 4: The response answers the question well but could be more focused or complete.
-    Score 5: The response perfectly addresses all aspects of the question.
-    
+    Score 1: The response fails to directly address the core question or misses any subtext or implicit aspects.
+    Score 2: The response addresses the main question but overlooks subtle nuances or related concerns.
+    Score 3: The response is relevant and comprehensive but fails to prioritize the most critical aspects of the question.
+    Score 4: The response is highly relevant, prioritizes well, but doesn't explore all possible interpretations of the question.
+    Score 5: The response demonstrates perfect relevance, addresses all explicit and implicit aspects, and provides valuable additional context.
+
     Provide:
-    - A numeric score (1-5, where 5 is excellent)
-    - A brief explanation justifying the score
-    - Specific suggestions for improvement
+    - A numeric score (1-5, where 5 is near impossible to achieve)
+    - A detailed critique justifying the score, analyzing how well each part of the question was addressed
+    - Specific suggestions for improvement, including unexplored angles or interpretations of the question
 """
 
 CLARITY_PROMPT = """
-    Evaluate the response on Clarity: Is the response clearly structured and easily understandable?
-    
+    Evaluate the response on Clarity: Is the response structured with perfect logical flow, using precise language that leaves no room for misinterpretation?
+
     Scoring Rubric:
-    Score 1: The response is extremely confusing and poorly structured.
-    Score 2: The response is difficult to follow with major organizational issues.
-    Score 3: The response is somewhat clear but has organizational or expression issues.
-    Score 4: The response is well-structured with only minor clarity issues.
-    Score 5: The response is exceptionally clear, well-organized, and easy to understand.
-    
+    Score 1: The response has any structural issues, unclear transitions, or imprecise language use.
+    Score 2: The response is generally clear but contains minor ambiguities or could be more concise.
+    Score 3: The response is well-structured and clear, but lacks optimal organization for the subject matter.
+    Score 4: The response demonstrates excellent clarity and structure, but falls short of absolute perfection in precision.
+    Score 5: The response exhibits flawless organization, crystal-clear explanations, and language so precise it could serve as a technical reference.
+
     Provide:
-    - A numeric score (1-5, where 5 is excellent)
-    - A brief explanation justifying the score
-    - Specific suggestions for improvement
+    - A numeric score (1-5, where 5 is near impossible to achieve)
+    - A detailed critique justifying the score, analyzing sentence structure, word choice, and overall organization
+    - Specific suggestions for improvement, including restructuring ideas or refining language for ultimate clarity
 """
 
 DEPTH_PROMPT = """
-    Evaluate the response on Depth: Does the response provide sufficient detail, insight, or useful context?
-    
+    Evaluate the response on Depth: Does the response provide extraordinarily comprehensive coverage, offering cutting-edge insights and exploring the topic to its fullest extent?
+
     Scoring Rubric:
-    Score 1: The response is extremely shallow with no meaningful detail or insight.
-    Score 2: The response lacks significant depth and provides minimal useful information.
-    Score 3: The response provides some depth but misses opportunities for insight or context.
-    Score 4: The response offers good depth with useful details and context.
-    Score 5: The response provides exceptional depth with comprehensive details, valuable insights, and rich context.
-    
+    Score 1: The response lacks depth, misses key concepts, or fails to go beyond surface-level information.
+    Score 2: The response provides good coverage but doesn't delve into advanced concepts or implications.
+    Score 3: The response offers solid depth with some advanced concepts, but doesn't push the boundaries of the topic.
+    Score 4: The response provides excellent depth, touching on cutting-edge ideas, but falls short of exhaustive coverage.
+    Score 5: The response demonstrates unparalleled depth, offering groundbreaking insights, and exhaustively covering all aspects including future implications.
+
     Provide:
-    - A numeric score (1-5, where 5 is excellent)
-    - A brief explanation justifying the score
-    - Specific suggestions for improvement
+    - A numeric score (1-5, where 5 is near impossible to achieve)
+    - A detailed critique justifying the score, analyzing the breadth and depth of concepts covered
+    - Specific suggestions for improvement, including additional advanced topics, interdisciplinary connections, or futuristic implications that could have been explored
 """
 
 # Initialize API keys from environment variables or Streamlit secrets
@@ -160,11 +160,16 @@ async def evaluate_with_atla_async(inputs: dict[str, str]) -> Tuple[float, Dict[
     clarity_task = evaluate_dimension(inputs["question"], inputs["response"], CLARITY_PROMPT)
     depth_task = evaluate_dimension(inputs["question"], inputs["response"], DEPTH_PROMPT)
     
-    # Run all evaluations concurrently
-    accuracy_score, accuracy_critique = await accuracy_task
-    relevance_score, relevance_critique = await relevance_task
-    clarity_score, clarity_critique = await clarity_task
-    depth_score, depth_critique = await depth_task
+    # Run all evaluations concurrently using asyncio.gather
+    accuracy_result, relevance_result, clarity_result, depth_result = await asyncio.gather(
+        accuracy_task, relevance_task, clarity_task, depth_task
+    )
+    
+    # Unpack results
+    accuracy_score, accuracy_critique = accuracy_result
+    relevance_score, relevance_critique = relevance_result
+    clarity_score, clarity_critique = clarity_result
+    depth_score, depth_critique = depth_result
     
     # Calculate average score
     avg_score = (accuracy_score + relevance_score + clarity_score + depth_score) / 4
