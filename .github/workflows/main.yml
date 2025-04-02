@@ -8,7 +8,7 @@ jobs:
     steps:
       - uses: backendcloud/hugging-push@v0.2.3
         with:
-          huggingface_repo: 'AtlaAI/MetaGPT'
+          huggingface_repo: 'AtlaAI/LLMsOnTrial'
           hf_token: ${{ secrets.HF_TOKEN }}
           repo_type: 'space'
           space_sdk: 'streamlit'

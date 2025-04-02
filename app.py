@@ -503,11 +503,11 @@ def main():
 
     with col1:
         # Display header
-        st.title("🤖 Meta-GPT")
+        st.title("🏛️ LLMs on Trial")
         st.markdown(
             """
         This app uses multiple LLMs (GPT-4o, Claude 3.7, and DeepSeekV3.0) to answer your questions.
-        The world's best LLM-as-a-Judge, [Selene](https://www.atla-ai.com/api), evaluates each response on accuracy, relevance, clarity, and depth, and the best one is selected and refined if needed (< 4.0 score).
+        The world's best LLM-as-a-Judge, [Selene](https://www.atla-ai.com/api), evaluates each response on accuracy, relevance, clarity, and helpfulness, and the best one is selected and refined if needed (< 4.0 score).
         """
         )
 
