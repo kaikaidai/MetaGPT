@@ -1,5 +1,5 @@
-title: MetaGPT
-emoji: 🧠
+title: LLMs on Trial
+emoji: 🏛️
 colorFrom: green
 colorTo: blue
 sdk: gradio

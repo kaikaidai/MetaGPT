@@ -11,7 +11,7 @@ import asyncio
 load_dotenv(dotenv_path="/.env")
 
 # Set page config
-st.set_page_config(page_title="Meta-GPT", layout="wide")
+st.set_page_config(page_title="LLMs on Trial", layout="wide")
 
 # Configuration parameters
 QUALITY_THRESHOLD = 4.0  # Threshold for acceptable response quality
@@ -333,7 +333,7 @@ def refine_responses(question: str, model: str, evaluation: Dict) -> Tuple[str, 
 
 
 def meta_chat(question: str) -> Dict:
-    """Process user question through the Meta-GPT system."""
+    """Process user question through the LLMs on Trial system."""
     iteration = 0
     refinement_history = []
 
